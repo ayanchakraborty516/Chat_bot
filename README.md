@@ -133,10 +133,7 @@ Copy `.env.example` to `.env`:
 ```bash
 cp .env.example .env
 ```
-Add your free Google Gemini API key:
-```env
-VITE_GEMINI_API_KEY=AIzaSy...
-```
+
 *(Note: You can also launch the app and paste your API key directly into the in-app Settings modal!)*
 
 ### 4. Run Development Server
