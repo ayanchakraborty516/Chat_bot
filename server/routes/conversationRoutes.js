@@ -2,8 +2,10 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { Conversation } from '../models/Conversation.js';
 import { Message } from '../models/Message.js';
+import { optionalAuth } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+router.use(optionalAuth);
 
 function getConversationQuery(id) {
   if (mongoose.isValidObjectId(id)) {
@@ -12,10 +14,13 @@ function getConversationQuery(id) {
   return { id: id };
 }
 
-// GET /api/conversations - List all conversations
+// GET /api/conversations - List conversations (scoped to authenticated user if present)
 router.get('/', async (req, res) => {
   try {
-    const conversations = await Conversation.find().sort({ updatedAt: -1 }).lean();
+    const filter = req.user?.id
+      ? { $or: [{ userId: req.user.id }, { userId: null }, { userId: { $exists: false } }] }
+      : {};
+    const conversations = await Conversation.find(filter).sort({ updatedAt: -1 }).lean();
     const formatted = conversations.map((conv) => ({
       ...conv,
       id: conv.id || conv._id.toString(),
@@ -38,6 +43,9 @@ router.post('/', async (req, res) => {
     if (id) {
       conversationData.id = id;
     }
+    if (req.user?.id) {
+      conversationData.userId = req.user.id;
+    }
 
     const conversation = new Conversation(conversationData);
     await conversation.save();
@@ -56,6 +64,9 @@ router.get('/:id', async (req, res) => {
     if (!conversation) {
       return res.status(404).json({ error: 'Conversation not found' });
     }
+    if (conversation.userId && req.user?.id && conversation.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to access this conversation' });
+    }
     res.json(conversation);
   } catch (error) {
     console.error('[API] Error fetching conversation:', error);
@@ -66,20 +77,25 @@ router.get('/:id', async (req, res) => {
 // PATCH /api/conversations/:id - Rename/update conversation
 router.patch('/:id', async (req, res) => {
   try {
+    const query = getConversationQuery(req.params.id);
+    const existing = await Conversation.findOne(query);
+    if (!existing) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+    if (existing.userId && req.user?.id && existing.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to modify this conversation' });
+    }
+
     const { title, modelId } = req.body;
     const updateData = {};
     if (typeof title === 'string') updateData.title = title.trim();
     if (typeof modelId === 'string') updateData.modelId = modelId;
 
     const conversation = await Conversation.findOneAndUpdate(
-      getConversationQuery(req.params.id),
+      query,
       { $set: updateData },
       { new: true }
     );
-
-    if (!conversation) {
-      return res.status(404).json({ error: 'Conversation not found' });
-    }
 
     res.json(conversation);
   } catch (error) {
@@ -96,6 +112,9 @@ router.delete('/:id', async (req, res) => {
 
     if (!conversation) {
       return res.status(404).json({ error: 'Conversation not found' });
+    }
+    if (conversation.userId && req.user?.id && conversation.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to delete this conversation' });
     }
 
     const targetId = conversation.id || conversation._id.toString();

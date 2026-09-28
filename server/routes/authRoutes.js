@@ -5,10 +5,23 @@ import mongoose from 'mongoose';
 import { User } from '../models/User.js';
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'ayan-ai-jwt-secret-key-production-ready';
+const isProduction = process.env.NODE_ENV === 'production';
+const JWT_SECRET = process.env.JWT_SECRET || (isProduction ? '' : 'ayan-ai-jwt-dev-secret-local-only');
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+
+function verifySecretConfig(res) {
+  if (!JWT_SECRET) {
+    console.error('[Auth Error] JWT_SECRET is missing! Please configure JWT_SECRET in Render environment variables.');
+    res.status(500).json({ error: 'Authentication service configuration error' });
+    return false;
+  }
+  return true;
+}
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
+  if (!verifySecretConfig(res)) return;
+
   try {
     const { name, email, password } = req.body;
 
@@ -48,7 +61,7 @@ router.post('/register', async (req, res) => {
     const token = jwt.sign(
       { id: userId, email: user.email, name: user.name },
       JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: JWT_EXPIRES_IN }
     );
 
     res.status(201).json({
@@ -67,6 +80,8 @@ router.post('/register', async (req, res) => {
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
+  if (!verifySecretConfig(res)) return;
+
   try {
     const { email, password } = req.body;
 
@@ -94,7 +109,7 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign(
       { id: userId, email: user.email, name: user.name },
       JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: JWT_EXPIRES_IN }
     );
 
     res.json({
@@ -113,6 +128,8 @@ router.post('/login', async (req, res) => {
 
 // GET /api/auth/me
 router.get('/me', async (req, res) => {
+  if (!verifySecretConfig(res)) return;
+
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {

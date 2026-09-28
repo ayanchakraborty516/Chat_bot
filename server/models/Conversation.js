@@ -20,6 +20,11 @@ const ConversationSchema = new mongoose.Schema(
       type: String,
       default: 'gemini-3.8-flash',
     },
+    userId: {
+      type: String,
+      index: true,
+      default: null,
+    },
   },
   {
     timestamps: true,

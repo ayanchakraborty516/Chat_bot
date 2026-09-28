@@ -2,8 +2,10 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { Message } from '../models/Message.js';
 import { Conversation } from '../models/Conversation.js';
+import { optionalAuth } from '../middleware/authMiddleware.js';
 
 const router = express.Router({ mergeParams: true });
+router.use(optionalAuth);
 
 function getConversationQuery(id) {
   if (mongoose.isValidObjectId(id)) {
@@ -17,6 +19,10 @@ router.get('/', async (req, res) => {
   try {
     const { id } = req.params;
     const conversation = await Conversation.findOne(getConversationQuery(id));
+
+    if (conversation && conversation.userId && req.user?.id && conversation.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to view messages for this conversation' });
+    }
 
     const conversationIds = [id];
     if (conversation) {
@@ -64,6 +70,9 @@ router.post('/', async (req, res) => {
 
     // Find conversation to ensure it exists and get canonical ID
     const conversation = await Conversation.findOne(getConversationQuery(id));
+    if (conversation && conversation.userId && req.user?.id && conversation.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to add messages to this conversation' });
+    }
     const targetConvId = conversation ? (conversation.id || conversation._id.toString()) : id;
 
     const messageData = {

@@ -17,9 +17,14 @@ dist-ssr
 .env.local
 .env.*.local
 server/.env
-server/.env.local
+server/.env.*
 **/.env
 **/.env.*
+
+# Explicitly allow configuration templates
+!.env.example
+!server/.env.example
+!**/.env.example
 
 # Editor directories and files
 .vscode/*
